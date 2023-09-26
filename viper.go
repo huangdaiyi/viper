@@ -1114,6 +1114,10 @@ func (v *Viper) Unmarshal(rawVal interface{}, opts ...DecoderConfigOption) error
 	return decode(v.AllSettings(), defaultDecoderConfig(rawVal, opts...))
 }
 
+func (v *Viper) UnmarshalKeyPrefix(key string, rawVal interface{}, opts ...DecoderConfigOption) error {
+	return decode(v.GetPrefix(key), defaultDecoderConfig(rawVal, opts...))
+}
+
 // defaultDecoderConfig returns default mapstructure.DecoderConfig with support
 // of time.Duration values & string slices
 func defaultDecoderConfig(output interface{}, opts ...DecoderConfigOption) *mapstructure.DecoderConfig {
@@ -2103,6 +2107,29 @@ func (v *Viper) AllSettings() map[string]interface{} {
 	m := map[string]interface{}{}
 	// start from the list of keys, and construct the map one value at a time
 	for _, k := range v.AllKeys() {
+		value := v.Get(k)
+		if value == nil {
+			// should not happen, since AllKeys() returns only keys holding a value,
+			// check just in case anything changes
+			continue
+		}
+		path := strings.Split(k, v.keyDelim)
+		lastKey := strings.ToLower(path[len(path)-1])
+		deepestMap := deepSearch(m, path[0:len(path)-1])
+		// set innermost value
+		deepestMap[lastKey] = value
+	}
+	return m
+}
+
+func (v *Viper) GetPrefix(key string) map[string]interface{} {
+	m := map[string]interface{}{}
+	// start from the list of keys, and construct the map one value at a time
+	prefix := fmt.Sprintf("%s%s", key, v.keyDelim)
+	for _, k := range v.AllKeys() {
+		if k != key && !strings.HasPrefix(k, prefix) {
+			continue
+		}
 		value := v.Get(k)
 		if value == nil {
 			// should not happen, since AllKeys() returns only keys holding a value,
